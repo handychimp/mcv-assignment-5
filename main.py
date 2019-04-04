@@ -4,9 +4,9 @@ import numpy as np
 import matplotlib
 import cv2
 import gc
-from keras.layers import Input, Dense, Activation, Dropout, Conv2D, MaxPool2D, Flatten
+from keras.layers import Input, Dense, Activation, Dropout, Conv2D, MaxPooling2D, Flatten
 from keras.layers.advanced_activations import ReLU
-from keras.models import Model
+from keras.models import Sequential
 from keras.optimizers import SGD
 from sklearn.model_selection import train_test_split
 # sklearn etc
@@ -91,10 +91,10 @@ def DataGenerator(img_addrs, batch_size, num_classes):
         for j in range(len(img_addrs)):
 
             # [1] Call the load_images function and append the image in X.
-            image, label = load_image(img_addrs[j])
+            image, label = load_image(img_addrs[j], num_classes)
             X.append(image)
             # [2] Create a one-hot encoding with np.eye and append the one-hot vector to Y.
-            Y.append(np.eye(num_classes)[label])  # takes the label from the load_image function and makes 1-hot.
+            Y.append(label)  # already receiving 1-hot from load_image
 
         # [3] Compare the count and batch_size (hint: modulo operation) and if so:
         # we use j+1 as count var was previously equivalent to this
@@ -102,7 +102,7 @@ def DataGenerator(img_addrs, batch_size, num_classes):
             if ((j+1) % batch_size) == 0:
                 #   - Use yield to return X,Y as numpy arrays with types 'float32' and 'uint8' respectively
                 X = np.array(X, dtype=np.float32)
-                X = X.reshape(batch_size, 2304)
+                X = X.reshape(batch_size, 124, 124, 1)
                 Y = np.array(Y, dtype=np.uint8)
 
                 yield X, Y
@@ -127,29 +127,22 @@ if __name__ == "__main__":
     #print(label)
 
     # pull paths from function and shuffle these before splitting to train and val
-    paths = paths_list_from_directory('PetImages')
+    paths = paths_list_from_directory('JPEGImages')
     np.random.shuffle(paths)
 
     # Use train test split to split to default 0.75 train and 0.25 test
     train, val = train_test_split(paths)
 
-    inputs = Conv2D(64, kernel_size=3, activation='relu', input_shape=(124, 124, 1))
-    x = inputs
-    # convolution and pooling layer(s)
-    x = Conv2D(32, kernel_size=3, activation='relu')(x)
-    x = MaxPool2D(pool_size=(5, 5))(x)
-    x = Dropout(0.25)(x)
-
-    x = Flatten()(x)
-    i = 0
-    while i < 3:
-        x = Dense(576)(x)
-        x = ReLU()(x)
-        x = Dropout(0.5)(x)
-        i = i + 1
-
-    predictions = Dense(nb_classes, activation='softmax')(x)
-    model = Model(input=inputs, output=predictions)
+    model = Sequential()
+    model.add(Conv2D(32, kernel_size=(5, 5), strides=(1, 1),
+                     activation='relu',
+                     input_shape=(124, 124, 1)))
+    model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
+    model.add(Conv2D(64, (5, 5), activation='relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Flatten())
+    model.add(Dense(1000, activation='relu'))
+    model.add(Dense(nb_classes, activation='softmax'))
 
     # gradient decent parameters
     sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
@@ -168,7 +161,7 @@ if __name__ == "__main__":
                                   validation_steps=10)
 
     # score by doing a full run over the validation set
-    score = model.evaluate_generator(DataGenerator(val, len(val), nb_classes), verbose=0, steps=1)
+    #score = model.evaluate_generator(DataGenerator(val, len(val), nb_classes), verbose=0, steps=1)
 
     print('Test score:', score[0])
     print('Test accuracy:', score[1])
