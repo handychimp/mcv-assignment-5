@@ -4,10 +4,11 @@ import numpy as np
 import matplotlib
 import cv2
 import gc
-from keras.layers import Input, Dense, Activation, Dropout, Conv2D, Flatten
+from keras.layers import Input, Dense, Activation, Dropout, Conv2D, MaxPool2D, Flatten
 from keras.layers.advanced_activations import ReLU
 from keras.models import Model
 from keras.optimizers import SGD
+from sklearn.model_selection import train_test_split
 # sklearn etc
 # from keras.activations import tanh, sigmoid some other activations
 
@@ -119,21 +120,30 @@ def DataGenerator(img_addrs, batch_size, num_classes):
 
 
 if __name__ == "__main__":
-    print("Hello World!")
-    file_names = paths_list_from_directory("JPEGImages")
-    image, label = load_image(file_names[0], nb_classes)
-    print(image)
-    print(label)
+    #print("Hello World!")
+    #file_names = paths_list_from_directory("JPEGImages")
+    #image, label = load_image(file_names[0], nb_classes)
+    #print(image)
+    #print(label)
+
+    # pull paths from function and shuffle these before splitting to train and val
+    paths = paths_list_from_directory('PetImages')
+    np.random.shuffle(paths)
+
+    # Use train test split to split to default 0.75 train and 0.25 test
+    train, val = train_test_split(paths)
 
     inputs = Conv2D(64, kernel_size=3, activation='relu', input_shape=(124, 124, 1))
     x = inputs
     # convolution and pooling layer(s)
     x = Conv2D(32, kernel_size=3, activation='relu')(x)
-    x = Flatten()(x)
+    x = MaxPool2D(pool_size=(5, 5))(x)
+    x = Dropout(0.25)(x)
 
+    x = Flatten()(x)
     i = 0
     while i < 3:
-        x = Dense(254)(x)
+        x = Dense(576)(x)
         x = ReLU()(x)
         x = Dropout(0.5)(x)
         i = i + 1
