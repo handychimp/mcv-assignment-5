@@ -4,17 +4,31 @@ import numpy as np
 import matplotlib
 import cv2
 import gc
-from keras.layers import Input, Dense, Activation, Dropout, Conv2D, MaxPooling2D, Flatten
+import pickle
+from keras.layers import Input, Dense, Activation, Dropout, Conv2D, MaxPooling2D, Flatten, AveragePooling2D, BatchNormalization
 from keras.layers.advanced_activations import ReLU
 from keras.models import Sequential
-from keras.optimizers import SGD
+from keras.optimizers import SGD, rmsprop, Adam
 from sklearn.model_selection import train_test_split
-# sklearn etc
-# from keras.activations import tanh, sigmoid some other activations
+from keras import backend as K
+import tensorflow as tf
+from tensorflow.python.client import device_lib
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+config = tf.ConfigProto(
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.8)
+    # device_count = {'GPU': 1}
+)
+config.gpu_options.allow_growth = True
+session = tf.Session(config=config)
+
+# session = tf.Session(config=config)
+# session.run()
 
 np.random.seed(1337)  # for reproducibility
 
-batch_size = 64
+batch_size = 32
 nb_classes = 40
 nb_epoch = 30
 
@@ -35,10 +49,10 @@ def load_image(filename, num_classes):
     global class_dict
     # [1] Get the file category and make the conversion. Last 7 chars of name are extension, a number and and underscore
     dir, file = os.path.split(filename)
-    file_class = file[-7]
+    file_class = file[:-8]
 
     # If the class is already in the dict then use the classification associated, else create a new one and add to dict
-    if file in class_dict.items():
+    if file_class in class_dict.keys():
         label = np.eye(num_classes)[class_dict.get(file_class)]
     else:
         label = np.eye(num_classes)[len(class_dict)]
@@ -66,7 +80,7 @@ def load_image(filename, num_classes):
 
     # [5] Resize the image to 48 x 48 and divide it with 255.0 to normalise it to floating point format.
     # use opencv resize function
-    image = cv2.resize(image, (124, 124))
+    image = cv2.resize(image, (200, 200))
 
     # set the image as a float type and divide by 255.0 to normalize
     image.astype(float)
@@ -102,9 +116,8 @@ def DataGenerator(img_addrs, batch_size, num_classes):
             if ((j+1) % batch_size) == 0:
                 #   - Use yield to return X,Y as numpy arrays with types 'float32' and 'uint8' respectively
                 X = np.array(X, dtype=np.float32)
-                X = X.reshape(batch_size, 124, 124, 1)
+                X = X.reshape(batch_size, 200, 200, 1)
                 Y = np.array(Y, dtype=np.uint8)
-
                 yield X, Y
 
                 #   - delete X,Y
@@ -120,48 +133,71 @@ def DataGenerator(img_addrs, batch_size, num_classes):
 
 
 if __name__ == "__main__":
-    #print("Hello World!")
-    #file_names = paths_list_from_directory("JPEGImages")
-    #image, label = load_image(file_names[0], nb_classes)
-    #print(image)
-    #print(label)
 
     # pull paths from function and shuffle these before splitting to train and val
     paths = paths_list_from_directory('JPEGImages')
     np.random.shuffle(paths)
 
     # Use train test split to split to default 0.75 train and 0.25 test
+    #best was startin with 3x3 finishing with 3x3 and 1x1 max pools (11.0% on test)
     train, val = train_test_split(paths)
+    with tf.Session(config=config) as sess:
+        model = Sequential()
+        model.add(Conv2D(128, kernel_size=(5, 5), strides=(1, 1), activation='relu', input_shape=(200, 200, 1)))
+        # model.add(Conv2D(128, kernel_size=(3, 3), strides=(1, 1), activation='relu', input_shape=(200, 200, 1)))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D(pool_size=(3, 3)))
+        model.add(Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu'))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D(pool_size=(3, 3)))
+        model.add(Conv2D(256, kernel_size=(1, 1), strides=(1, 1), activation='relu'))
+        model.add(BatchNormalization())
+        model.add(Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu'))
+        model.add(BatchNormalization())
+        model.add(Conv2D(512, kernel_size=(3, 3), strides=(1, 1), activation='relu'))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D(pool_size=(2, 2)))
+        model.add(Conv2D(512, kernel_size=(3, 3), strides=(1, 1), activation='relu'))
+        model.add(BatchNormalization())
+        model.add(MaxPooling2D(pool_size=(2, 2)))
+        # model.add(Conv2D(512, kernel_size=(3, 3), strides=(2, 2), activation='relu'))
+        # model.add(Conv2D(512, kernel_size=(3, 3), strides=(2, 2), activation='relu'))
+        # model.add(MaxPooling2D(pool_size=(2, 2)))
+        model.add(Flatten())
+        model.add(Dense(4608, activation='relu')) # make it the size of what comes out of the flatten
+        model.add(BatchNormalization())
+        model.add(Dropout(0.2))
+        model.add(Dense(2048, activation='relu'))
+        model.add(BatchNormalization())
+        model.add(Dropout(0.2))
+        model.add(Dense(2048, activation='relu'))
+        model.add(BatchNormalization())
+        model.add(Dropout(0.2))
+        model.add(Dense(nb_classes, activation='softmax'))
 
-    model = Sequential()
-    model.add(Conv2D(32, kernel_size=(5, 5), strides=(1, 1),
-                     activation='relu',
-                     input_shape=(124, 124, 1)))
-    model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
-    model.add(Conv2D(64, (5, 5), activation='relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2)))
-    model.add(Flatten())
-    model.add(Dense(1000, activation='relu'))
-    model.add(Dense(nb_classes, activation='softmax'))
+        # gradient decent parameters
+        sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+        # rms = rmsprop(lr=0.01, rho=0.9, epsilon=None, decay=0.0)
+        # ad = Adam(lr=0.01, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
-    # gradient decent parameters
-    sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+        # model.compile(optimizer=sgd,
+        #              loss='categorical_crossentropy',
+        #              metrics=['accuracy'])
 
-    model.compile(optimizer=sgd,
-                  loss='categorical_crossentropy',
-                  metrics=['accuracy'])
+        model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
 
-    # print a summary of the model
-    model.summary()
+        # print a summary of the model
+        model.summary()
 
-    # fit the model with our created generator, validate on the generator with the validation data over 10 batches
-    history = model.fit_generator(DataGenerator(train, batch_size, nb_classes), epochs=nb_epoch,
-                                  steps_per_epoch=64, verbose=1,
-                                  validation_data=DataGenerator(val, batch_size, nb_classes),
-                                  validation_steps=10)
+        # fit the model with our created generator, validate on the generator with the validation data over 10 batches
+        history = model.fit_generator(DataGenerator(train, batch_size, nb_classes), epochs=nb_epoch,
+                                      steps_per_epoch=64, verbose=1,
+                                      validation_data=DataGenerator(val, batch_size, nb_classes),
+                                      validation_steps=10)
 
-    # score by doing a full run over the validation set
-    #score = model.evaluate_generator(DataGenerator(val, len(val), nb_classes), verbose=0, steps=1)
+        # score by doing a full run over the validation set
+        score = model.evaluate_generator(DataGenerator(val, batch_size, nb_classes), verbose=0, steps=15)
 
-    print('Test score:', score[0])
-    print('Test accuracy:', score[1])
+        print('Test score:', score[0])
+        print('Test accuracy:', score[1])
+        print(class_dict)
