@@ -63,12 +63,12 @@ def index_split_data(data_root=None, splits_root=None):
         action.training_set = verify_data_index(action.training_set, data_root)
         action.testing_set = verify_data_index(action.testing_set, data_root)
 
-    filtered = filter(
+    filtered = list(filter(
         lambda a:
             a.testing_set is not None and len(a.testing_set) > 0 and
-            a.training_set is not None and len(a.training_set) > 0, actions.values())
+            a.training_set is not None and len(a.training_set) > 0, actions.values()))
 
-    if not any(filtered):
+    if len(filtered) == 0:
         raise Exception("No images found!")
 
     return list(filtered)
