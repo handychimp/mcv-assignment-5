@@ -4,7 +4,8 @@ import numpy as np
 import matplotlib
 import cv2
 import gc
-import pickle
+import models as m
+import visuals as v
 from keras.layers import Input, Dense, Activation, Dropout, Conv2D, MaxPooling2D, Flatten, AveragePooling2D, BatchNormalization
 from keras.layers.advanced_activations import ReLU
 from keras.models import Sequential
@@ -139,7 +140,7 @@ if __name__ == "__main__":
     np.random.shuffle(paths)
 
     # Use train test split to split to default 0.75 train and 0.25 test
-    #best was startin with 3x3 finishing with 3x3 and 1x1 max pools (11.0% on test)
+    # best was startin with 3x3 finishing with 3x3 and 1x1 max pools (11.0% on test)
     train, val = train_test_split(paths)
     with tf.Session(config=config) as sess:
         model = Sequential()
@@ -197,7 +198,12 @@ if __name__ == "__main__":
 
         # score by doing a full run over the validation set
         score = model.evaluate_generator(DataGenerator(val, batch_size, nb_classes), verbose=0, steps=15)
+        m.save_model(model, "model0")
+        m.pickle_it(history, "model0_output")
 
-        print('Test score:', score[0])
-        print('Test accuracy:', score[1])
-        print(class_dict)
+    v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], "plot_model0.png")
+    v.write_history_csv(history,"history.csv")
+
+    print('Test score:', score[0])
+    print('Test accuracy:', score[1])
+    print(class_dict)
