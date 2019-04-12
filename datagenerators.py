@@ -73,7 +73,7 @@ class DataGenerator:
                 if ((j + 1) % batch_size) == 0:
                     #   - Use yield to return X,Y as numpy arrays with types 'float32' and 'uint8' respectively
                     X = numpy.array(X, dtype=numpy.float32)
-                    X = X.reshape(batch_size, 200, 200, 1)
+                    X = X.reshape(batch_size, self.image_size, self.image_size, 1)
                     Y = numpy.array(Y, dtype=numpy.uint8)
                     yield X, Y
 
