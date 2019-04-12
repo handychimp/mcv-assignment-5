@@ -14,6 +14,7 @@ class DataGenerator:
         self.data = datasource.index_split_data(data_root, splits_root)
         self.classes, self.class_names = self.generate_classes()
         self.image_size = image_size
+        DataGenerator.cache_data_set(self.data, self.image_size)
 
     def generate_classes(self):
         assert self.data is not None
@@ -98,6 +99,22 @@ class DataGenerator:
             yield x, model.predict(x), y
 
 
+
+    # Cache all images
+    @staticmethod
+    def cache_data_set(data, image_size):
+        assert data is not None
+        assert image_size is not None
+        assert image_size > 0
+
+        all_data = []
+
+        for data_class in data:
+            all_data.extend(data_class.testing_set)
+            all_data.extend(data_class.training_set)
+
+        for path in all_data:
+            DataGenerator.load_image(path, image_size)
 
     # Prepare and load images
     @staticmethod
