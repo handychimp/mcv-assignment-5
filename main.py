@@ -73,7 +73,7 @@ if __name__ == "__main__":
         model.add(Dense(nb_classes, activation='softmax'))
 
         # gradient decent parameters
-        sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+        # sgd = SGD(lr=0.1, momentum=0.9, nesterov=True)
         # rms = rmsprop(lr=0.01, rho=0.9, epsilon=None, decay=0.0)
         # ad = Adam(lr=0.01, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
 
@@ -83,23 +83,58 @@ if __name__ == "__main__":
 
         model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
 
+
         # print a summary of the model
         model.summary()
+        l_rates = [0.01, 0.02, 0.05, 0.075, 0.1, 0.16, 0.2, 0.3]
+        accs = []
+        for rate in l_rates:
+            sgd = SGD(lr=rate, decay=1e-6, momentum=0.9, nesterov=True)
+            # fit the model with our created generator, validate on the generator with the validation data over 10 batches
+            history = model.fit_generator(data.generate_training_data(batch_size), epochs=nb_epoch,
+                                          steps_per_epoch=64, verbose=1,
+                                          validation_data=data.generate_testing_data(batch_size),
+                                          validation_steps=10)
 
-        # fit the model with our created generator, validate on the generator with the validation data over 10 batches
-        history = model.fit_generator(data.generate_training_data(batch_size), epochs=nb_epoch,
-                                      steps_per_epoch=64, verbose=1,
-                                      validation_data=data.generate_testing_data(batch_size),
-                                      validation_steps=10)
+            # score by doing a full run over the validation set
+            score = model.evaluate_generator(data.generate_testing_data(batch_size), verbose=0, steps=15)
+            model_name = "model_lr" + str(rate).replace('.', '')
+            v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], model_name)
+            accs.append(score[1])
 
-        # score by doing a full run over the validation set
-        score = model.evaluate_generator(data.generate_testing_data(batch_size), verbose=0, steps=15)
-        m.save_model(model, "model0")
-        m.pickle_it(history, "model0_output")
+        idx = accs.index(max(accs))
+        lr = l_rates[idx]
 
-    v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], "plot_model0.png")
-    v.write_history_csv(history,"history.csv")
+        momentums = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.99]
 
-    print('Test score:', score[0])
-    print('Test accuracy:', score[1])
-    print(data.classes)
+        accs=[]
+        for mom in momentums:
+            sgd = SGD(lr=lr, decay=1e-6, momentum=mom, nesterov=True)
+            # fit the model with our created generator, validate on the generator with the validation data over 10 batches
+            history = model.fit_generator(data.generate_training_data(batch_size), epochs=nb_epoch,
+                                          steps_per_epoch=64, verbose=1,
+                                          validation_data=data.generate_testing_data(batch_size),
+                                          validation_steps=10)
+
+            # score by doing a full run over the validation set
+            score = model.evaluate_generator(data.generate_testing_data(batch_size), verbose=0, steps=15)
+            model_name = "model_mom" + str(mom).replace('.', '')
+            v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], model_name)
+            accs.append(score[1])
+
+        idx = accs.index(max(accs))
+        momentum = momentums[idx]
+
+    # m.save_model(model, "model0")
+    # m.pickle_it(history, "model0_output")
+
+    # v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], "plot_model0.png")
+    # v.write_history_csv(history,"history.csv")
+
+    # print('Test score:', score[0])
+    # print('Test accuracy:', score[1])
+    # print(data.classes)
+    # decays = [1e-6]
+
+    print("momentum: " + str(momentum))
+    print("learning rate: " + str(rate))
