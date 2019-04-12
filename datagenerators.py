@@ -91,14 +91,9 @@ class DataGenerator:
     def get_label(self, one_hot):
         return self.classes[one_hot.index(max(one_hot))]
 
-
-    def get_predictions(self, model, steps):
-        # need to make a datagenerator for predictions, that returns the model prediction and the true label
-        while True:
-            x, y = next()
-            yield x, model.predict(x), y
-
-
+    def get_predictions(self, model, batch_size):
+        for batch in self.generate_testing_data(batch_size):
+            yield [(item_data, model.predict(item_data), item_class) for item_class, item_data in batch]
 
     # Cache all images
     @staticmethod
