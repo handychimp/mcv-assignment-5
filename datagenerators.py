@@ -73,7 +73,7 @@ class DataGenerator:
                 if ((j + 1) % batch_size) == 0:
                     #   - Use yield to return X,Y as numpy arrays with types 'float32' and 'uint8' respectively
                     X = numpy.array(X, dtype=numpy.float32)
-                    X = X.reshape(batch_size, self.image_size, self.image_size, 1)
+                    X = X.reshape(batch_size, self.image_size, self.image_size, 3)
                     Y = numpy.array(Y, dtype=numpy.uint8)
                     yield X, Y
 
@@ -125,7 +125,8 @@ class DataGenerator:
 
         # [2] Load the image in greyscale with OpenCV.
         # use cv2 image read function, and greyscale parameter
-        image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+
 
         # [3] Find the dimension that is the smallest between the height and the width and assign it to the crop_dim var
         # get values of height and width from image shape

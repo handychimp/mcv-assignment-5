@@ -27,12 +27,12 @@ def write_history_csv(history, filename="history.csv"):
 
     print('CSV file written')
 
-def calc_confusion_matrix(model, data):
+#def calc_confusion_matrix(model, data):
 
-    pred=model.predict_generator(data.generate_testing_data(32),100)
-    data.
+    #pred=model.predict_generator(data.generate_testing_data(32),100)
+   #data.
 
-    matrix = confusion_matrix(y_test.argmax(axis=1), y_pred.argmax(axis=1))
+   # matrix = confusion_matrix(y_test.argmax(axis=1), y_pred.argmax(axis=1))
 
 
 if __name__ == "__main__":

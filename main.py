@@ -1,6 +1,6 @@
 import os
 from datagenerators import DataGenerator
-
+from keras.applications import xception
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -8,6 +8,8 @@ import models as m
 import visuals as v
 from keras.layers import Input, Dense, Activation, Dropout, Conv2D, MaxPooling2D, Flatten, AveragePooling2D, BatchNormalization
 from keras.layers.advanced_activations import ReLU
+from keras.layers import GlobalAveragePooling2D
+from keras.models import Model
 from keras.models import Sequential
 from keras.optimizers import SGD, rmsprop, Adam
 from sklearn.model_selection import train_test_split
@@ -29,48 +31,27 @@ session = tf.Session(config=config)
 
 np.random.seed(1337)  # for reproducibility
 
-batch_size = 32
+batch_size = 16
 nb_classes = 40
 nb_epoch = 30
 
+image_size = 200
 
 if __name__ == "__main__":
 
-    data = DataGenerator(image_size=200)
+    data = DataGenerator(image_size=image_size)
 
     with tf.Session(config=config) as sess:
-        model = Sequential()
-        model.add(Conv2D(128, kernel_size=(5, 5), strides=(1, 1), activation='relu', input_shape=(200, 200, 1)))
-        # model.add(Conv2D(128, kernel_size=(3, 3), strides=(1, 1), activation='relu', input_shape=(200, 200, 1)))
-        model.add(BatchNormalization())
-        model.add(MaxPooling2D(pool_size=(3, 3)))
-        model.add(Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu'))
-        model.add(BatchNormalization())
-        model.add(MaxPooling2D(pool_size=(3, 3)))
-        model.add(Conv2D(256, kernel_size=(1, 1), strides=(1, 1), activation='relu'))
-        model.add(BatchNormalization())
-        model.add(Conv2D(256, kernel_size=(3, 3), strides=(1, 1), activation='relu'))
-        model.add(BatchNormalization())
-        model.add(Conv2D(512, kernel_size=(3, 3), strides=(1, 1), activation='relu'))
-        model.add(BatchNormalization())
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Conv2D(512, kernel_size=(3, 3), strides=(1, 1), activation='relu'))
-        model.add(BatchNormalization())
-        model.add(MaxPooling2D(pool_size=(2, 2)))
-        # model.add(Conv2D(512, kernel_size=(3, 3), strides=(2, 2), activation='relu'))
-        # model.add(Conv2D(512, kernel_size=(3, 3), strides=(2, 2), activation='relu'))
-        # model.add(MaxPooling2D(pool_size=(2, 2)))
-        model.add(Flatten())
-        model.add(Dense(4608, activation='relu')) # make it the size of what comes out of the flatten
-        model.add(BatchNormalization())
-        model.add(Dropout(0.2))
-        model.add(Dense(2048, activation='relu'))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.2))
-        model.add(Dense(2048, activation='relu'))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.2))
-        model.add(Dense(nb_classes, activation='softmax'))
+        xc_model = xception.Xception(
+            include_top=False,
+            weights='imagenet',
+            input_shape=(image_size, image_size, 3))
+
+        x = xc_model.output
+        x = GlobalAveragePooling2D()(x)
+        predictions = Dense(nb_classes, activation='softmax')(x)
+
+        model = Model(xc_model.input, predictions)
 
         # gradient decent parameters
         # sgd = SGD(lr=0.1, momentum=0.9, nesterov=True)
@@ -81,7 +62,7 @@ if __name__ == "__main__":
         #              loss='categorical_crossentropy',
         #              metrics=['accuracy'])
 
-        model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy'])
+        model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics=['accuracy'])
 
 
         # print a summary of the model
