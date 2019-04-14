@@ -16,11 +16,12 @@ from sklearn.model_selection import train_test_split
 from keras import backend as K
 import tensorflow as tf
 from tensorflow.python.client import device_lib
+from keras.callbacks import ModelCheckpoint
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 config = tf.ConfigProto(
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.8)
+    gpu_options=tf.GPUOptions(per_process_gpu_memory_fraction=0.8)
     # device_count = {'GPU': 1}
 )
 config.gpu_options.allow_growth = True
@@ -31,11 +32,56 @@ session = tf.Session(config=config)
 
 np.random.seed(1337)  # for reproducibility
 
-batch_size = 16
+batch_size = 32
 nb_classes = 40
 nb_epoch = 30
 
-image_size = 200
+image_size = 150
+
+
+def progressive_layer_train(pl_model, pl_epoch, pl_batches):
+    current_depth = 0
+
+    global sgd
+    global history
+
+    pl_model.save_weights('temp.h5')
+
+    values = []
+
+    while current_depth < len(model.layers):
+
+        pl_model.load_weights('temp.h5')
+
+        cur_layer = 0
+
+        for pl_layer in pl_model.layers:
+            pl_layer.trainable = cur_layer < current_depth
+            cur_layer += 1
+
+        print("Training all layers")
+
+        pl_checkpoint = ModelCheckpoint(v.model_path('progressive-layers-depth-' +
+                                                     current_depth + '-{epoch:03d}-{val_acc:.2f}.hdf5'),
+                                        monitor='val_acc',
+                                        verbose=1,
+                                        save_best_only=True,
+                                        mode='max')
+        pl_callbacks_list = [pl_checkpoint]
+
+        sgd = SGD(lr=0.05, decay=1e-6, momentum=0.9, nesterov=True)
+        history = model.fit_generator(data.generate_training_data(pl_batches), epochs=pl_epoch,
+                                      steps_per_epoch=64, verbose=1,
+                                      validation_data=data.generate_testing_data(pl_batches),
+                                      validation_steps=10,
+                                      callbacks=pl_callbacks_list)
+
+        values.append(max(history.history['val_acc']))
+
+        v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], 'depth-{}-plot')
+
+    v.plot_progressive()
+
 
 if __name__ == "__main__":
 
@@ -62,49 +108,55 @@ if __name__ == "__main__":
         #              loss='categorical_crossentropy',
         #              metrics=['accuracy'])
 
+        for layer in xc_model.layers:
+            layer.trainable = False
+
         model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics=['accuracy'])
 
+        v.plot_model(model)
 
-        # print a summary of the model
         model.summary()
-        l_rates = [0.01, 0.02, 0.05, 0.075, 0.1, 0.16, 0.2, 0.3]
-        accs = []
-        for rate in l_rates:
-            sgd = SGD(lr=rate, decay=1e-6, momentum=0.9, nesterov=True)
-            # fit the model with our created generator, validate on the generator with the validation data over 10 batches
-            history = model.fit_generator(data.generate_training_data(batch_size), epochs=nb_epoch,
-                                          steps_per_epoch=64, verbose=1,
-                                          validation_data=data.generate_testing_data(batch_size),
-                                          validation_steps=10)
+        v.write_summary(model)
 
-            # score by doing a full run over the validation set
-            score = model.evaluate_generator(data.generate_testing_data(batch_size), verbose=0, steps=15)
-            model_name = "model_lr" + str(rate).replace('.', '')
-            v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], model_name)
-            accs.append(score[1])
+        print("Training only top layers quickly")
 
-        idx = accs.index(max(accs))
-        lr = l_rates[idx]
+        tl_epoch = 2
+        tl_batch = 32
 
-        momentums = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.99]
+        sgd = SGD(lr=0.05, decay=1e-6, momentum=0.9, nesterov=True)
+        history = model.fit_generator(data.generate_training_data(tl_batch), epochs=tl_epoch,
+                                      steps_per_epoch=64, verbose=1,
+                                      validation_data=data.generate_testing_data(batch_size),
+                                      validation_steps=10)
 
-        accs=[]
-        for mom in momentums:
-            sgd = SGD(lr=lr, decay=1e-6, momentum=mom, nesterov=True)
-            # fit the model with our created generator, validate on the generator with the validation data over 10 batches
-            history = model.fit_generator(data.generate_training_data(batch_size), epochs=nb_epoch,
-                                          steps_per_epoch=64, verbose=1,
-                                          validation_data=data.generate_testing_data(batch_size),
-                                          validation_steps=10)
+        top_model_name = "only-top-layers_{}-epochs_{}-batch-size".format(tl_epoch, tl_batch)
+        v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], top_model_name)
 
-            # score by doing a full run over the validation set
-            score = model.evaluate_generator(data.generate_testing_data(batch_size), verbose=0, steps=15)
-            model_name = "model_mom" + str(mom).replace('.', '')
-            v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], model_name)
-            accs.append(score[1])
+        for layer in xc_model.layers:
+            layer.trainable = True
 
-        idx = accs.index(max(accs))
-        momentum = momentums[idx]
+        v.write_history_csv(history, top_model_name + ".csv")
+
+        model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics=['accuracy'])
+
+        print("Training all layers")
+
+        checkpoint = ModelCheckpoint(v.model_path('weights-improvement-{epoch:03d}-{val_acc:.2f}.hdf5'), monitor='val_acc', verbose=1, save_best_only=True, mode='max')
+        callbacks_list = [checkpoint]
+
+        sgd = SGD(lr=0.05, decay=1e-6, momentum=0.9, nesterov=True)
+        history = model.fit_generator(data.generate_training_data(batch_size), epochs=nb_epoch,
+                                      steps_per_epoch=64, verbose=1,
+                                      validation_data=data.generate_testing_data(batch_size),
+                                      validation_steps=10,
+                                      callbacks=callbacks_list)
+
+        model_name = "all-layers_{}-epochs_{}-batch-size".format(nb_epoch, batch_size)
+        v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], model_name)
+
+        v.write_history_csv(history, model_name + ".csv")
+
+        score = model.evaluate_generator(data.generate_testing_data(batch_size), verbose=0, steps=15)
 
     # m.save_model(model, "model0")
     # m.pickle_it(history, "model0_output")
@@ -117,5 +169,5 @@ if __name__ == "__main__":
     # print(data.classes)
     # decays = [1e-6]
 
-    print("momentum: " + str(momentum))
-    print("learning rate: " + str(rate))
+    #print("momentum: " + str(momentum))
+    #print("learning rate: " + str(rate))
