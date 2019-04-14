@@ -103,12 +103,14 @@ def write_history_csv(history, filename="history.csv"):
 
     print("CSV file '{}' created.".format(filename))
 
-#def calc_confusion_matrix(model, data):
+def calc_confusion_matrix(model, data):
 
-    #pred=model.predict_generator(data.generate_testing_data(32),100)
-   #data.
+    pred=model.predict_generator(data.generate_testing_data(32), 100)
 
-   # matrix = confusion_matrix(y_test.argmax(axis=1), y_pred.argmax(axis=1))
+    cm = confusion_matrix(data.class_names, pred)
+
+
+
 
 
 def plot_model(model, file_name='model.png'):

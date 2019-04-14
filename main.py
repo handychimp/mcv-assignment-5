@@ -38,56 +38,6 @@ nb_epoch = 30
 
 image_size = 150
 
-
-def progressive_layer_train(pl_model, pl_epoch, pl_batches):
-    current_depth = 0
-
-    global sgd
-    global history
-
-    pl_model.save_weights('temp.h5')
-
-    values = []
-
-    while current_depth < len(model.layers):
-
-        pl_model.load_weights('temp.h5')
-
-        cur_layer = 0
-
-        for pl_layer in pl_model.layers:
-            pl_layer.trainable = cur_layer < current_depth
-            cur_layer += 1
-        model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics=['accuracy'])
-
-        print("Training up to layer {}/{}".format(current_depth, len(pl_model.layers)))
-
-        pl_checkpoint = ModelCheckpoint(v.model_path('progressive-layers-depth-' +
-                                                     str(current_depth) + '-{epoch:03d}-{val_acc:.2f}.hdf5'),
-                                        monitor='val_acc',
-                                        verbose=1,
-                                        save_best_only=True,
-                                        mode='max')
-        pl_callbacks_list = [pl_checkpoint]
-
-        sgd = SGD(lr=0.05, decay=1e-6, momentum=0.9, nesterov=True)
-        history = model.fit_generator(data.generate_training_data(pl_batches), epochs=pl_epoch,
-                                      steps_per_epoch=64, verbose=1,
-                                      validation_data=data.generate_testing_data(pl_batches),
-                                      validation_steps=10,
-                                      callbacks=pl_callbacks_list)
-
-        values.append(max(history.history['val_acc']))
-
-        v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], 'depth-{}-plot'.format(current_depth))
-
-        current_depth += 15
-
-        v.plot_progressive(values, 'progressive-log-{}.png'.format(len(values)))
-
-    v.plot_progressive(values)
-
-
 if __name__ == "__main__":
 
     data = DataGenerator(image_size=image_size)
@@ -142,28 +92,31 @@ if __name__ == "__main__":
 
         v.write_history_csv(history, top_model_name + ".csv")
 
-        progressive_layer_train(model, 10, 32)
+        cur_layer = 0
+        for pl_layer in model.layers:
+            pl_layer.trainable = cur_layer < 15
+            cur_layer += 1
 
-        #model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics=['accuracy'])
+        model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics=['accuracy'])
 
-        #print("Training all layers")
+        print("Training all layers")
 
-        #checkpoint = ModelCheckpoint(v.model_path('weights-improvement-{epoch:03d}-{val_acc:.2f}.hdf5'), monitor='val_acc', verbose=1, save_best_only=True, mode='max')
-        #callbacks_list = [checkpoint]
+        checkpoint = ModelCheckpoint(v.model_path('weights-improvement-{epoch:03d}-{val_acc:.2f}.hdf5'), monitor='val_acc', verbose=1, save_best_only=True, mode='max')
+        callbacks_list = [checkpoint]
 
-        #sgd = SGD(lr=0.05, decay=1e-6, momentum=0.9, nesterov=True)
-        #history = model.fit_generator(data.generate_training_data(batch_size), epochs=nb_epoch,
-         #                             steps_per_epoch=64, verbose=1,
-        #                              validation_data=data.generate_testing_data(batch_size),
-        #                              validation_steps=10,
-        #                              callbacks=callbacks_list)
+        sgd = SGD(lr=0.05, decay=1e-6, momentum=0.9, nesterov=True)
+        history = model.fit_generator(data.generate_training_data(batch_size), epochs=nb_epoch,
+                                     steps_per_epoch=64, verbose=1,
+                                      validation_data=data.generate_testing_data(batch_size),
+                                      validation_steps=10,
+                                      callbacks=callbacks_list)
 
-        #model_name = "all-layers_{}-epochs_{}-batch-size".format(nb_epoch, batch_size)
-        #v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], model_name)
+        model_name = "all-layers_{}-epochs_{}-batch-size".format(nb_epoch, batch_size)
+        v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], model_name)
 
-        #v.write_history_csv(history, model_name + ".csv")
+        v.write_history_csv(history, model_name + ".csv")
 
-        #score = model.evaluate_generator(data.generate_testing_data(batch_size), verbose=0, steps=15)
+        score = model.evaluate_generator(data.generate_testing_data(batch_size), verbose=0, steps=15)
 
     # m.save_model(model, "model0")
     # m.pickle_it(history, "model0_output")
