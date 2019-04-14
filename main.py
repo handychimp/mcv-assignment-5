@@ -58,11 +58,12 @@ def progressive_layer_train(pl_model, pl_epoch, pl_batches):
         for pl_layer in pl_model.layers:
             pl_layer.trainable = cur_layer < current_depth
             cur_layer += 1
+        model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics=['accuracy'])
 
-        print("Training all layers")
+        print("Training up to layer {}/{}".format(current_depth, len(pl_model.layers)))
 
         pl_checkpoint = ModelCheckpoint(v.model_path('progressive-layers-depth-' +
-                                                     current_depth + '-{epoch:03d}-{val_acc:.2f}.hdf5'),
+                                                     str(current_depth) + '-{epoch:03d}-{val_acc:.2f}.hdf5'),
                                         monitor='val_acc',
                                         verbose=1,
                                         save_best_only=True,
@@ -78,9 +79,13 @@ def progressive_layer_train(pl_model, pl_epoch, pl_batches):
 
         values.append(max(history.history['val_acc']))
 
-        v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], 'depth-{}-plot')
+        v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], 'depth-{}-plot'.format(current_depth))
 
-    v.plot_progressive()
+        current_depth += 15
+
+        v.plot_progressive(values, 'progressive-log-{}.png'.format(len(values)))
+
+    v.plot_progressive(values)
 
 
 if __name__ == "__main__":
@@ -132,31 +137,33 @@ if __name__ == "__main__":
         top_model_name = "only-top-layers_{}-epochs_{}-batch-size".format(tl_epoch, tl_batch)
         v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], top_model_name)
 
-        for layer in xc_model.layers:
-            layer.trainable = True
+        #for layer in xc_model.layers:
+        #    layer.trainable = True
 
         v.write_history_csv(history, top_model_name + ".csv")
 
-        model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics=['accuracy'])
+        progressive_layer_train(model, 10, 32)
 
-        print("Training all layers")
+        #model.compile(loss='categorical_crossentropy', optimizer='nadam', metrics=['accuracy'])
 
-        checkpoint = ModelCheckpoint(v.model_path('weights-improvement-{epoch:03d}-{val_acc:.2f}.hdf5'), monitor='val_acc', verbose=1, save_best_only=True, mode='max')
-        callbacks_list = [checkpoint]
+        #print("Training all layers")
 
-        sgd = SGD(lr=0.05, decay=1e-6, momentum=0.9, nesterov=True)
-        history = model.fit_generator(data.generate_training_data(batch_size), epochs=nb_epoch,
-                                      steps_per_epoch=64, verbose=1,
-                                      validation_data=data.generate_testing_data(batch_size),
-                                      validation_steps=10,
-                                      callbacks=callbacks_list)
+        #checkpoint = ModelCheckpoint(v.model_path('weights-improvement-{epoch:03d}-{val_acc:.2f}.hdf5'), monitor='val_acc', verbose=1, save_best_only=True, mode='max')
+        #callbacks_list = [checkpoint]
 
-        model_name = "all-layers_{}-epochs_{}-batch-size".format(nb_epoch, batch_size)
-        v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], model_name)
+        #sgd = SGD(lr=0.05, decay=1e-6, momentum=0.9, nesterov=True)
+        #history = model.fit_generator(data.generate_training_data(batch_size), epochs=nb_epoch,
+         #                             steps_per_epoch=64, verbose=1,
+        #                              validation_data=data.generate_testing_data(batch_size),
+        #                              validation_steps=10,
+        #                              callbacks=callbacks_list)
 
-        v.write_history_csv(history, model_name + ".csv")
+        #model_name = "all-layers_{}-epochs_{}-batch-size".format(nb_epoch, batch_size)
+        #v.plot_epoch_accuracy(history.history['acc'], history.history['val_acc'], model_name)
 
-        score = model.evaluate_generator(data.generate_testing_data(batch_size), verbose=0, steps=15)
+        #v.write_history_csv(history, model_name + ".csv")
+
+        #score = model.evaluate_generator(data.generate_testing_data(batch_size), verbose=0, steps=15)
 
     # m.save_model(model, "model0")
     # m.pickle_it(history, "model0_output")

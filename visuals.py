@@ -45,7 +45,10 @@ print("Created folder '{}' for this run.".format(run_id))
 
 
 def plot_epoch_accuracy(train, test=None, filename="plot.png"):
+    plt.figure()
+
     df = pd.DataFrame({'x': range(1, len(train)+1), 'train': train, 'val': test})
+
     plt.plot('x', 'train', data=df, linewidth=2, color='blue', label='train')
     plt.plot('x', 'val', data=df, linewidth=2, color='red', label='test')
     plt.ylabel('accuracy')
@@ -58,7 +61,10 @@ def plot_epoch_accuracy(train, test=None, filename="plot.png"):
 
 
 def plot_progressive(vals, filename='prog-epochs.png'):
+    plt.figure()
+
     df = pd.DataFrame({'x': range(1, len(vals)+1), 'val': vals})
+
     plt.plot('x', 'val', data=df, linewidth=2, color='red', label='value')
     plt.ylabel('accuracy')
 
